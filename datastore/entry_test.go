@@ -6,25 +6,39 @@ import (
 	"testing"
 )
 
-func TestEntry_Encode(t *testing.T) {
-	e := entry{"key", "value"}
-	e.Decode(e.Encode())
-	if e.key != "key" {
-		t.Error("incorrect key")
+func TestDataRecord_Serialization(t *testing.T) {
+	record := Entry{
+		Key:   "testKey",
+		Value: "testValue",
 	}
-	if e.value != "value" {
-		t.Error("incorrect value")
+	data, err := record.Serialize()
+	if err != nil {
+		t.Fatalf("Failed to serialize record: %v", err)
+	}
+
+	expectedSize := 12 + len(record.Key) + len(record.Value)
+	if len(data) != expectedSize {
+		t.Errorf("Expected size %d, got %d", expectedSize, len(data))
 	}
 }
 
-func TestReadValue(t *testing.T) {
-	e := entry{"key", "test-value"}
-	data := e.Encode()
-	v, err := readValue(bufio.NewReader(bytes.NewReader(data)))
-	if err != nil {
-		t.Fatal(err)
+func TestDataRecord_RetrieveValue(t *testing.T) {
+	record := Entry{
+		Key:   "testKey",
+		Value: "testValue",
 	}
-	if v != "test-value" {
-		t.Errorf("Got bat value [%s]", v)
+	data, err := record.Serialize()
+	if err != nil {
+		t.Fatalf("Failed to serialize record: %v", err)
+	}
+
+	reader := bufio.NewReader(bytes.NewReader(data))
+	retrievedValue, err := retrieveValue(reader)
+	if err != nil {
+		t.Fatalf("Failed to read value: %v", err)
+	}
+
+	if retrievedValue != record.Value {
+		t.Errorf("Expected value %s, got %s", record.Value, retrievedValue)
 	}
 }

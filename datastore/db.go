@@ -50,42 +50,45 @@ func (db *Db) recover() error {
 	}
 	defer input.Close()
 
-	var buf [bufSize]byte
 	in := bufio.NewReaderSize(input, bufSize)
-	for err == nil {
+	for {
 		var (
 			header, data []byte
 			n            int
 		)
-		header, err = in.Peek(bufSize)
+		header, err = in.Peek(4)
 		if err == io.EOF {
-			if len(header) == 0 {
-				return err
-			}
+			break
 		} else if err != nil {
 			return err
 		}
 		size := binary.LittleEndian.Uint32(header)
 
 		if size < bufSize {
-			data = buf[:size]
+			data = make([]byte, size)
 		} else {
 			data = make([]byte, size)
 		}
 		n, err = in.Read(data)
 
-		if err == nil {
-			if n != int(size) {
-				return fmt.Errorf("corrupted file")
-			}
-
-			var e entry
-			e.Decode(data)
-			db.index[e.key] = db.outOffset
-			db.outOffset += int64(n)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
 		}
+		if n != int(size) {
+			return fmt.Errorf("corrupted file")
+		}
+
+		var record Entry
+		err = record.Deserialize(data)
+		if err != nil {
+			return err
+		}
+		db.index[record.Key] = db.outOffset
+		db.outOffset += int64(n)
 	}
-	return err
+	return nil
 }
 
 func (db *Db) Close() error {
@@ -110,7 +113,7 @@ func (db *Db) Get(key string) (string, error) {
 	}
 
 	reader := bufio.NewReader(file)
-	value, err := readValue(reader)
+	value, err := retrieveValue(reader)
 	if err != nil {
 		return "", err
 	}
@@ -118,11 +121,15 @@ func (db *Db) Get(key string) (string, error) {
 }
 
 func (db *Db) Put(key, value string) error {
-	e := entry{
-		key:   key,
-		value: value,
+	record := Entry{
+		Key:   key,
+		Value: value,
 	}
-	n, err := db.out.Write(e.Encode())
+	data, err := record.Serialize()
+	if err != nil {
+		return err
+	}
+	n, err := db.out.Write(data)
 	if err == nil {
 		db.index[key] = db.outOffset
 		db.outOffset += int64(n)

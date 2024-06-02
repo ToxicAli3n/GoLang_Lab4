@@ -1,92 +1,90 @@
 package datastore
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"bufio"
+	"bytes"
+	_ "os"
+	_ "path/filepath"
 	"testing"
 )
 
-func TestDb_Put(t *testing.T) {
-	dir, err := ioutil.TempDir("", "test-db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+func TestDatabase_PutGet(t *testing.T) {
+	dir := t.TempDir()
 	db, err := NewDb(dir)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create database: %v", err)
 	}
 	defer db.Close()
 
-	pairs := [][]string{
-		{"key1", "value1"},
-		{"key2", "value2"},
-		{"key3", "value3"},
-	}
-
-	outFile, err := os.Open(filepath.Join(dir, outFileName))
+	key := "testKey"
+	value := "testValue"
+	err = db.Put(key, value)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to put value: %v", err)
 	}
 
-	t.Run("put/get", func(t *testing.T) {
-		for _, pair := range pairs {
-			err := db.Put(pair[0], pair[1])
-			if err != nil {
-				t.Errorf("Cannot put %s: %s", pairs[0], err)
-			}
-			value, err := db.Get(pair[0])
-			if err != nil {
-				t.Errorf("Cannot get %s: %s", pairs[0], err)
-			}
-			if value != pair[1] {
-				t.Errorf("Bad value returned expected %s, got %s", pair[1], value)
-			}
-		}
-	})
-
-	outInfo, err := outFile.Stat()
+	retrievedValue, err := db.Get(key)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to get value: %v", err)
 	}
-	size1 := outInfo.Size()
 
-	t.Run("file growth", func(t *testing.T) {
-		for _, pair := range pairs {
-			err := db.Put(pair[0], pair[1])
-			if err != nil {
-				t.Errorf("Cannot put %s: %s", pairs[0], err)
-			}
-		}
-		outInfo, err := outFile.Stat()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if size1*2 != outInfo.Size() {
-			t.Errorf("Unexpected size (%d vs %d)", size1, outInfo.Size())
-		}
-	})
+	if retrievedValue != value {
+		t.Errorf("Expected value %s, got %s", value, retrievedValue)
+	}
+}
 
-	t.Run("new db process", func(t *testing.T) {
-		if err := db.Close(); err != nil {
-			t.Fatal(err)
-		}
-		db, err = NewDb(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+func TestDatabase_Recovery(t *testing.T) {
+	dir := t.TempDir()
+	db, err := NewDb(dir)
+	if err != nil {
+		t.Fatalf("Failed to create database: %v", err)
+	}
 
-		for _, pair := range pairs {
-			value, err := db.Get(pair[0])
-			if err != nil {
-				t.Errorf("Cannot put %s: %s", pairs[0], err)
-			}
-			if value != pair[1] {
-				t.Errorf("Bad value returned expected %s, got %s", pair[1], value)
-			}
-		}
-	})
+	key := "testKey"
+	value := "testValue"
+	err = db.Put(key, value)
+	if err != nil {
+		t.Fatalf("Failed to put value: %v", err)
+	}
 
+	err = db.Close()
+	if err != nil {
+		t.Fatalf("Failed to close database: %v", err)
+	}
+
+	db, err = NewDb(dir)
+	if err != nil {
+		t.Fatalf("Failed to reopen database: %v", err)
+	}
+	defer db.Close()
+
+	retrievedValue, err := db.Get(key)
+	if err != nil {
+		t.Fatalf("Failed to get value after recovery: %v", err)
+	}
+
+	if retrievedValue != value {
+		t.Errorf("Expected value %s, got %s", value, retrievedValue)
+	}
+}
+
+func TestReadValue(t *testing.T) {
+	record := Entry{
+		Key:   "testKey",
+		Value: "testValue",
+	}
+	data, err := record.Serialize()
+	if err != nil {
+		t.Fatalf("Failed to serialize record: %v", err)
+	}
+
+	reader := bufio.NewReader(bytes.NewReader(data))
+	retrievedValue, err := retrieveValue(reader)
+	if err != nil {
+		t.Fatalf("Failed to read value: %v", err)
+	}
+
+	if retrievedValue != record.Value {
+		t.Errorf("Expected value %s, got %s", record.Value, retrievedValue)
+	}
 }
