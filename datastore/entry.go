@@ -10,7 +10,7 @@ type Entry struct {
 	Key, Value string
 }
 
-func NewDataRecord(key, value string) *Entry {
+func NewEntry(key, value string) *Entry {
 	return &Entry{Key: key, Value: value}
 }
 
@@ -18,7 +18,7 @@ func calculateLength(key, value string) int64 {
 	return int64(len(key) + len(value) + 12)
 }
 
-func (r *Entry) Serialize() ([]byte, error) {
+func (r *Entry) Serialize() []byte {
 	kl := len(r.Key)
 	vl := len(r.Value)
 	size := kl + vl + 12
@@ -28,7 +28,7 @@ func (r *Entry) Serialize() ([]byte, error) {
 	copy(res[8:], r.Key)
 	binary.LittleEndian.PutUint32(res[kl+8:], uint32(vl))
 	copy(res[kl+12:], r.Value)
-	return res, nil
+	return res
 }
 
 func (r *Entry) GetLength() int64 {

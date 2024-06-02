@@ -11,10 +11,7 @@ func TestDataRecord_Serialization(t *testing.T) {
 		Key:   "testKey",
 		Value: "testValue",
 	}
-	data, err := record.Serialize()
-	if err != nil {
-		t.Fatalf("Failed to serialize record: %v", err)
-	}
+	data := record.Serialize()
 
 	expectedSize := 12 + len(record.Key) + len(record.Value)
 	if len(data) != expectedSize {
@@ -27,10 +24,7 @@ func TestDataRecord_RetrieveValue(t *testing.T) {
 		Key:   "testKey",
 		Value: "testValue",
 	}
-	data, err := record.Serialize()
-	if err != nil {
-		t.Fatalf("Failed to serialize record: %v", err)
-	}
+	data := record.Serialize()
 
 	reader := bufio.NewReader(bytes.NewReader(data))
 	retrievedValue, err := retrieveValue(reader)
