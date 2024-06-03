@@ -52,7 +52,7 @@ func main() {
 	body := ReqBody{Value: time.Now().Format(time.RFC3339)}
 	json.NewEncoder(buff).Encode(body)
 
-	res, err := client.Post(fmt.Sprintf("%slospollosbrovaros", dbUrl), "application/json", buff)
+	res, err := client.Post(fmt.Sprintf("%smegadreamteam", dbUrl), "application/json", buff)
 	if err != nil {
 		log.Fatalf("Post request failed: %v", err)
 	}
