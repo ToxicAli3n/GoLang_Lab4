@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,11 @@ var client = &http.Client{
 	Timeout: 3 * time.Second,
 }
 
+type RespBody struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 func TestBalancer(t *testing.T) {
 	if !isIntegrationTestEnabled() {
 		t.Skip("Integration test is not enabled")
@@ -23,13 +29,9 @@ func TestBalancer(t *testing.T) {
 		t.Skip("Balancer is not available")
 	}
 
-	resp, err := client.Get(fmt.Sprintf("%s/api/v1/some-data", baseAddress))
-	if err != nil {
-		t.Fatalf("Failed to get response from balancer: %v", err)
-	}
-	defer resp.Body.Close()
+	teamName := "megadreamteam"
 
-	t.Logf("Response from balancer: [%s]", resp.Header.Get("lb-from"))
+	checkResponseBody(t, teamName)
 }
 
 func isIntegrationTestEnabled() bool {
@@ -44,6 +46,31 @@ func isBalancerAvailable() bool {
 	}
 	defer resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
+}
+
+func checkResponseBody(t *testing.T, key string) {
+	addr := fmt.Sprintf("%s/api/v1/some-data?key=%s", baseAddress, key)
+	resp, err := client.Get(addr)
+	if err != nil {
+		t.Fatalf("Failed to get response from balancer: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var body RespBody
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		t.Fatalf("Failed to decode response body: %v", err)
+		return
+	}
+
+	if body.Key != key {
+		t.Errorf("Expected key %s, got %s", key, body.Key)
+	}
+
+	if body.Value == "" {
+		t.Errorf("Expected non-empty value for key %s", key)
+	}
 }
 
 func BenchmarkBalancer(b *testing.B) {
